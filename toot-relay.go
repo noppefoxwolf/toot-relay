@@ -44,8 +44,8 @@ func main() {
 
 	http.HandleFunc("/relay-to/", handler)
 
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		io.WriteString(writer, "Hello from a HandleFunc #1!\n")
+	http.HandleFunc("/ping", func(writer http.ResponseWriter, request *http.Request) {
+		io.WriteString(writer, "pong")
 	})
 	port := env("PORT", "")
 	http.ListenAndServe(":"+port, nil)
@@ -54,7 +54,7 @@ func main() {
 func handler(writer http.ResponseWriter, request *http.Request) {
 	components := strings.Split(request.URL.Path, "/")
 
-	if len(components) < 4 {
+	if len(components) < 3 {
 		writer.WriteHeader(500)
 		fmt.Fprintln(writer, "Invalid URL path:", request.URL.Path)
 		log.Println("Invalid URL path:", request.URL.Path)
@@ -62,19 +62,19 @@ func handler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	notification := &apns2.Notification{}
-	notification.DeviceToken = components[3]
+	notification.DeviceToken = components[2]
 
 	buffer := new(bytes.Buffer)
 	buffer.ReadFrom(request.Body)
 	encodedString := encode85(buffer.Bytes())
 	payload := payload.NewPayload().Alert("🎺").MutableContent().ContentAvailable().Custom("p", encodedString)
 
-	if len(components) > 4 {
-		payload.Custom("x", strings.Join(components[4:], "/"))
+	if len(components) > 3 {
+		payload.Custom("x", strings.Join(components[3:], "/"))
 	}
 
 	notification.Payload = payload
-	notification.Topic = "cx.c3.toot"
+	notification.Topic = "dev.noppe.snowfox"
 
 	switch request.Header.Get("Content-Encoding") {
 	case "aesgcm":
