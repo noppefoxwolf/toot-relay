@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -44,8 +45,7 @@ func main() {
 	http.HandleFunc("/relay-to/", handler)
 
 	http.HandleFunc("/ping", func(writer http.ResponseWriter, request *http.Request) {
-		writer.WriteHeader(200)
-		fmt.Fprintf(writer, "pong")
+		io.WriteString(writer, "Hello from a HandleFunc #1!\n")
 	})
 }
 
