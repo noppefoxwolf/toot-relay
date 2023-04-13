@@ -44,9 +44,11 @@ func main() {
 
 	http.HandleFunc("/relay-to/", handler)
 
-	http.HandleFunc("/ping", func(writer http.ResponseWriter, request *http.Request) {
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		io.WriteString(writer, "Hello from a HandleFunc #1!\n")
 	})
+	port := env("PORT", "")
+	http.ListenAndServe(":"+port, nil)
 }
 
 func handler(writer http.ResponseWriter, request *http.Request) {
