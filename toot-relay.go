@@ -2,12 +2,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,72 +14,38 @@ import (
 	"time"
 
 	"github.com/sideshow/apns2"
-	"github.com/sideshow/apns2/certificate"
 	"github.com/sideshow/apns2/payload"
-	"golang.org/x/net/http2"
+	"github.com/sideshow/apns2/token"
 )
 
 var (
-	developmentClient *apns2.Client
-	productionClient  *apns2.Client
+	client *apns2.Client
 )
 
 func main() {
-	p12file := env("P12_FILENAME", "toot-relay.p12")
-	p12base64 := env("P12_BASE64", "")
-	p12password := env("P12_PASSWORD", "")
+	p8PrivateKey := env("P8_PRIVATE_KEY", "")
+	p8KeyID := env("P8_KEY_ID", "")
+	p8TeamID := env("P8_TEAM_ID", "")
 
-	port := env("PORT", "42069")
-	tlsCrtFile := env("CRT_FILENAME", "toot-relay.crt")
-	tlsKeyFile := env("KEY_FILENAME", "toot-relay.key")
-	// CA_FILENAME can be set to a file that contains PEM encoded certificates that will be
-	// used as the sole root CAs when connecting to the Apple Notification Service API.
-	// If unset, the system-wide certificate store will be used.
-	caFile := env("CA_FILENAME", "")
-	var rootCAs *x509.CertPool
-
-	if caPEM, err := ioutil.ReadFile(caFile); err == nil {
-		rootCAs = x509.NewCertPool()
-		if ok := rootCAs.AppendCertsFromPEM(caPEM); !ok {
-			log.Fatalf("CA file %s specified but no CA certificates could be loaded\n", caFile)
-		}
+	authKey, err := token.AuthKeyFromBytes([]byte(p8PrivateKey))
+	if err != nil {
+		log.Fatal("token error:", err)
 	}
 
-	if p12base64 != "" {
-		bytes, err := base64.StdEncoding.DecodeString(p12base64)
-		if err != nil {
-			log.Fatal("Base64 decoding error: ", err)
-		}
-
-		cert, err := certificate.FromP12Bytes(bytes, p12password)
-		if err != nil {
-			log.Fatal("Error parsing certificate: ", err)
-		}
-
-		developmentClient = apns2.NewClient(cert).Development()
-		productionClient = apns2.NewClient(cert).Production()
-	} else {
-		cert, err := certificate.FromP12File(p12file, p12password)
-		if err != nil {
-			log.Fatal("Error loading certificate file: ", err)
-		}
-
-		developmentClient = apns2.NewClient(cert).Development()
-		productionClient = apns2.NewClient(cert).Production()
+	token := &token.Token{
+		AuthKey: authKey,
+		// KeyID from developer account (Certificates, Identifiers & Profiles -> Keys)
+		KeyID: p8KeyID,
+		// TeamID from developer account (View Account -> Membership)
+		TeamID: p8TeamID,
 	}
-
-	if rootCAs != nil {
-		developmentClient.HTTPClient.Transport.(*http2.Transport).TLSClientConfig.RootCAs = rootCAs
-		productionClient.HTTPClient.Transport.(*http2.Transport).TLSClientConfig.RootCAs = rootCAs
-	}
+	client = apns2.NewTokenClient(token)
 
 	http.HandleFunc("/relay-to/", handler)
 
-	if _, err := os.Stat("toot-relay.crt"); !os.IsNotExist(err) {
-		log.Fatal(http.ListenAndServeTLS(":"+port, tlsCrtFile, tlsKeyFile, nil))
-	} else {
-		log.Fatal(http.ListenAndServe(":"+port, nil))
-	}
+	http.HandleFunc("/ping", func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(200)
+	})
 }
 
 func handler(writer http.ResponseWriter, request *http.Request) {
@@ -93,8 +57,6 @@ func handler(writer http.ResponseWriter, request *http.Request) {
 		log.Println("Invalid URL path:", request.URL.Path)
 		return
 	}
-
-	isProduction := components[2] == "production"
 
 	notification := &apns2.Notification{}
 	notification.DeviceToken = components[3]
@@ -153,13 +115,6 @@ func handler(writer http.ResponseWriter, request *http.Request) {
 		notification.Priority = apns2.PriorityLow
 	default:
 		notification.Priority = apns2.PriorityHigh
-	}
-
-	var client *apns2.Client
-	if isProduction {
-		client = productionClient
-	} else {
-		client = developmentClient
 	}
 
 	res, err := client.Push(notification)
