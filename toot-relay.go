@@ -45,6 +45,7 @@ func main() {
 
 	http.HandleFunc("/ping", func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(200)
+		fmt.Fprintln(writer, "pong")
 	})
 }
 
