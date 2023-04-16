@@ -40,8 +40,8 @@ func main() {
 		// TeamID from developer account (View Account -> Membership)
 		TeamID: p8TeamID,
 	}
-	isProduction := env("APNS_ENVIRONMENT", "")
-	if isProduction == "PRODUCTION" {
+	apnsEnvironment := env("APNS_ENVIRONMENT", "")
+	if apnsEnvironment == "PRODUCTION" {
 		client = apns2.NewTokenClient(token).Production()
 	} else {
 		client = apns2.NewTokenClient(token).Development()
