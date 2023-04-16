@@ -40,7 +40,7 @@ func main() {
 		// TeamID from developer account (View Account -> Membership)
 		TeamID: p8TeamID,
 	}
-	client = apns2.NewTokenClient(token)
+	client = apns2.NewTokenClient(token).Production()
 
 	http.HandleFunc("/relay-to/", handler)
 
